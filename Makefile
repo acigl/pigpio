@@ -40,6 +40,11 @@ includedir = $(prefix)/include
 libdir = $(prefix)/lib
 mandir = $(prefix)/man
 
+debpckg_name = pgpio
+debpckg_version = 79
+debpckg_architecture := $(shell dpkg --print-architecture)
+debpckg_dir = $(debpckg_name)_$(debpckg_version)_$(debpckg_architecture)
+
 all:	$(ALL)
 
 lib:	$(LIB)
@@ -134,6 +139,50 @@ uninstall:
 ifeq ($(DESTDIR),)
 	ldconfig
 endif
+
+rpidebpckg:     $(ALL)
+	install -m 0755 -d                             $(debpckg_dir)
+	install -m 0755 -d                             $(debpckg_dir)/DEBIAN
+	echo "Package: pigpio"                         > $(debpckg_dir)/DEBIAN/control
+	echo "Version: $(debpckg_version)"             >> $(debpckg_dir)/DEBIAN/control
+	echo "Section: libs"                           >> $(debpckg_dir)/DEBIAN/control
+	echo "Priority: optional"                      >> $(debpckg_dir)/DEBIAN/control
+	echo "Architecture: $(debpckg_architecture)"   >> $(debpckg_dir)/DEBIAN/control
+	echo "Maintainer: joan2937 <pigpio@abyz.me.uk>"                                   >> $(debpckg_dir)/DEBIAN/control
+	echo "Description: Full pigpio library and utilities"                             >> $(debpckg_dir)/DEBIAN/control
+	echo " Installs pigpio daemon, utilities, headers, and shared/static libraries."  >> $(debpckg_dir)/DEBIAN/control
+	echo "#!/bin/bash"                             > $(debpckg_dir)/DEBIAN/postinst
+	echo "set -e"                                  >> $(debpckg_dir)/DEBIAN/postinst
+	echo "cd $(DESTDIR)$(libdir) && ln -fs libpigpio.so.$(SOVERSION)      libpigpio.so"      >> $(debpckg_dir)/DEBIAN/postinst
+	echo "cd $(DESTDIR)$(libdir) && ln -fs libpigpiod_if.so.$(SOVERSION)  libpigpiod_if.so"  >> $(debpckg_dir)/DEBIAN/postinst
+	echo "cd $(DESTDIR)$(libdir) && ln -fs libpigpiod_if2.so.$(SOVERSION) libpigpiod_if2.so" >> $(debpckg_dir)/DEBIAN/postinst
+	echo "ldconfig"                                >> $(debpckg_dir)/DEBIAN/postinst
+	echo "systemctl daemon-reload || true"         >> $(debpckg_dir)/DEBIAN/postinst
+	echo "exit 0"                                  >> $(debpckg_dir)/DEBIAN/postinst
+	chmod 755 $(debpckg_dir)/DEBIAN/postinst
+	echo "#!/bin/bash"                             > $(debpckg_dir)/DEBIAN/prerm
+	echo "set -e"                                  >> $(debpckg_dir)/DEBIAN/prerm
+	echo "systemctl stop pigpiod 2>/dev/null || true"                                 >> $(debpckg_dir)/DEBIAN/prerm
+	echo "exit 0"                                  >> $(debpckg_dir)/DEBIAN/prerm
+	chmod 755 $(debpckg_dir)/DEBIAN/prerm
+	install -m 0755 -d                             $(debpckg_dir)/opt/pigpio/cgi
+	install -m 0755 -d                             $(debpckg_dir)$(includedir)
+	install -m 0644 pigpio.h                       $(debpckg_dir)$(includedir)
+	install -m 0644 pigpiod_if.h                   $(debpckg_dir)$(includedir)
+	install -m 0644 pigpiod_if2.h                  $(debpckg_dir)$(includedir)
+	install -m 0755 -d                             $(debpckg_dir)$(libdir)
+	install -m 0755 libpigpio.so.$(SOVERSION)      $(debpckg_dir)$(libdir)
+	install -m 0755 libpigpiod_if.so.$(SOVERSION)  $(debpckg_dir)$(libdir)
+	install -m 0755 libpigpiod_if2.so.$(SOVERSION) $(debpckg_dir)$(libdir)
+	install -m 0755 -d                             $(debpckg_dir)$(bindir)
+	install -m 0755 pig2vcd                        $(debpckg_dir)$(bindir)
+	install -m 0755 pigpiod                        $(debpckg_dir)$(bindir)
+	install -m 0755 pigs                           $(debpckg_dir)$(bindir)
+	install -m 0755 -d                             $(debpckg_dir)$(mandir)/man1
+	install -m 0644 p*.1                           $(debpckg_dir)$(mandir)/man1
+	install -m 0755 -d                             $(debpckg_dir)$(mandir)/man3
+	install -m 0644 p*.3                           $(debpckg_dir)$(mandir)/man3
+	dpkg-deb --root-owner-group --build $(debpckg_dir)
 
 $(LIB1):	$(OBJ1)
 	$(SHLIB) -pthread -Wl,-soname,$(LIB1).$(SOVERSION) -o $(LIB1).$(SOVERSION) $(OBJ1)
